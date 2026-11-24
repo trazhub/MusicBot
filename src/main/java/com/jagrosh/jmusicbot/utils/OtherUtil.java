@@ -183,33 +183,13 @@ public class OtherUtil
             return "UNKNOWN";
     }
     
+    /**
+     * Update checks are disabled in this fork: the upstream project's releases are a different line of versions.
+     * @return always null
+     */
     public static String getLatestVersion()
     {
-        try
-        {
-            Response response = new OkHttpClient.Builder().build()
-                    .newCall(new Request.Builder().get().url("https://api.github.com/repos/jagrosh/MusicBot/releases/latest").build())
-                    .execute();
-            ResponseBody body = response.body();
-            if(body != null)
-            {
-                try(Reader reader = body.charStream())
-                {
-                    JSONObject obj = new JSONObject(new JSONTokener(reader));
-                    return obj.getString("tag_name");
-                }
-                finally
-                {
-                    response.close();
-                }
-            }
-            else
-                return null;
-        }
-        catch(IOException | JSONException | NullPointerException ex)
-        {
-            return null;
-        }
+        return null;
     }
 
     /**

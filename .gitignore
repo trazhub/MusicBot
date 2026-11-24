@@ -5,3 +5,10 @@
 *.json
 *.txt
 nb*.xml
+# local secrets and runtime data
+.env
+*.db
+*.db-shm
+*.db-wal
+/data/
+/.mvn/wrapper/maven-wrapper.jar

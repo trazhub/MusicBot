@@ -29,7 +29,7 @@ import java.util.regex.Pattern;
  */
 public class RequestMetadata
 {
-    public static final RequestMetadata EMPTY = new RequestMetadata(null, null);
+    public static final RequestMetadata EMPTY = new RequestMetadata((UserInfo) null, null);
     
     public final UserInfo user;
     public final RequestInfo requestInfo;
@@ -40,6 +40,27 @@ public class RequestMetadata
         this.requestInfo = requestInfo;
     }
     
+    private RequestMetadata(UserInfo user, RequestInfo requestInfo)
+    {
+        this.user = user;
+        this.requestInfo = requestInfo;
+    }
+
+    /** Rebuilds metadata from a saved queue snapshot. */
+    public static RequestMetadata restored(long userId, String username, String avatar, String query, com.sedmelluq.discord.lavaplayer.track.AudioTrack track)
+    {
+        if(userId == 0L)
+            return EMPTY;
+        return new RequestMetadata(new UserInfo(userId, username == null ? "unknown" : username, "0", avatar),
+                new RequestInfo(query == null ? "" : query, track.getInfo().uri));
+    }
+
+    /** Metadata for a request made through a slash command, button or request channel. */
+    public static RequestMetadata fromUser(User user, String query, AudioTrack track)
+    {
+        return new RequestMetadata(user, new RequestInfo(query == null ? "" : query, track.getInfo().uri));
+    }
+
     public long getOwner()
     {
         return user == null ? 0L : user.id;

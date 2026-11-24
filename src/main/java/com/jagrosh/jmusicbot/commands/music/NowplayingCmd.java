@@ -20,7 +20,7 @@ import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.audio.AudioHandler;
 import com.jagrosh.jmusicbot.commands.MusicCommand;
 import net.dv8tion.jda.api.Permission;
-import net.dv8tion.jda.api.entities.Message;
+import com.jagrosh.jmusicbot.ui.Embeds;
 
 /**
  *
@@ -38,18 +38,16 @@ public class NowplayingCmd extends MusicCommand
     }
 
     @Override
-    public void doCommand(CommandEvent event) 
+    public void doCommand(CommandEvent event)
     {
         AudioHandler handler = (AudioHandler)event.getGuild().getAudioManager().getSendingHandler();
-        Message m = handler.getNowPlaying(event.getJDA());
-        if(m==null)
+        boolean playing = handler.getPlayer().getPlayingTrack() != null;
+        event.getChannel().sendMessage(Embeds.nowPlaying(bot, event.getGuild())).queue(m ->
         {
-            event.reply(handler.getNoMusicPlaying(event.getJDA()));
+            if(playing)
+                bot.getNowplayingHandler().setLastNPMessage(m);
+        });
+        if(!playing)
             bot.getNowplayingHandler().clearLastNPMessage(event.getGuild());
-        }
-        else
-        {
-            event.reply(m, msg -> bot.getNowplayingHandler().setLastNPMessage(msg));
-        }
     }
 }

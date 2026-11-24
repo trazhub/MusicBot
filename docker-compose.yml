@@ -1,0 +1,37 @@
+# Run with:  cp .env.example .env   (edit it)   then   docker compose up -d --build
+services:
+  jmusicbot:
+    build: .
+    image: jmusicbot:local
+    container_name: jmusicbot
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Docker secrets alternative: instead of JMUSICBOT_TOKEN in .env, mount a secret and set
+      # JMUSICBOT_TOKEN_FILE=/run/secrets/discord_token (the bot reads NAME_FILE for every secret).
+      JMUSICBOT_HEALTH_PORT: "8080"
+    volumes:
+      # SQLite database, Playlists/ and optional config.txt. Owned by uid 10001 (the container user).
+      - jmusicbot-data:/data
+    # hardening: no extra privileges, read-only root filesystem, only /tmp and /data are writable
+    read_only: true
+    tmpfs:
+      # native libraries (audio, DAVE) are unpacked here and must be executable, so no "noexec"
+      - /tmp:exec,mode=1777,size=256m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    pids_limit: 512
+    stop_grace_period: 30s        # lets the bot snapshot queues before exiting
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    # No ports are published: the bot only makes outbound connections (Discord, YouTube, ...).
+    # The health endpoint listens on 127.0.0.1 inside the container and is used by the built-in HEALTHCHECK.
+
+volumes:
+  jmusicbot-data:

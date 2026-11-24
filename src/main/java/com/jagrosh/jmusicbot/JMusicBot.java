@@ -24,14 +24,22 @@ import com.jagrosh.jmusicbot.commands.dj.*;
 import com.jagrosh.jmusicbot.commands.general.*;
 import com.jagrosh.jmusicbot.commands.music.*;
 import com.jagrosh.jmusicbot.commands.owner.*;
+import club.minnced.discord.jdave.interop.JDaveSessionFactory;
+import com.jagrosh.jmusicbot.db.Database;
 import com.jagrosh.jmusicbot.entities.Prompt;
+import com.jagrosh.jmusicbot.health.HealthServer;
+import com.jagrosh.jmusicbot.ui.ButtonHandler;
+import com.jagrosh.jmusicbot.ui.SlashHandler;
 import com.jagrosh.jmusicbot.gui.GUI;
 import com.jagrosh.jmusicbot.settings.SettingsManager;
 import com.jagrosh.jmusicbot.utils.OtherUtil;
 import java.awt.Color;
 import java.util.Arrays;
-import javax.security.auth.login.LoginException;
+import net.dv8tion.jda.api.exceptions.InvalidTokenException;
 import net.dv8tion.jda.api.*;
+import net.dv8tion.jda.api.audio.AudioModuleConfig;
+import java.util.ArrayList;
+import java.util.List;
 import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.utils.cache.CacheFlag;
@@ -47,7 +55,7 @@ import ch.qos.logback.classic.Level;
 public class JMusicBot 
 {
     public final static Logger LOG = LoggerFactory.getLogger(JMusicBot.class);
-    public final static Permission[] RECOMMENDED_PERMS = {Permission.MESSAGE_READ, Permission.MESSAGE_WRITE, Permission.MESSAGE_HISTORY, Permission.MESSAGE_ADD_REACTION,
+    public final static Permission[] RECOMMENDED_PERMS = {Permission.VIEW_CHANNEL, Permission.MESSAGE_SEND, Permission.MESSAGE_HISTORY, Permission.MESSAGE_ADD_REACTION,
                                 Permission.MESSAGE_EMBED_LINKS, Permission.MESSAGE_ATTACH_FILES, Permission.MESSAGE_MANAGE, Permission.MESSAGE_EXT_EMOJI,
                                 Permission.VOICE_CONNECT, Permission.VOICE_SPEAK, Permission.NICKNAME_CHANGE};
     public final static GatewayIntent[] INTENTS = {GatewayIntent.DIRECT_MESSAGES, GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_MESSAGE_REACTIONS, GatewayIntent.GUILD_VOICE_STATES};
@@ -57,9 +65,14 @@ public class JMusicBot
      */
     public static void main(String[] args)
     {
+        // lets every config option be set with CONFIG_FORCE_<name> environment variables (dots become underscores)
+        System.setProperty("config.override_with_env_vars", System.getProperty("config.override_with_env_vars", "true"));
         if(args.length > 0)
             switch(args[0].toLowerCase())
             {
+                case "healthcheck":
+                    System.exit(HealthServer.check());
+                    return;
                 case "generate-config":
                     BotConfig.writeDefaultConfig();
                     return;
@@ -90,8 +103,19 @@ public class JMusicBot
         
         // set up the listener
         EventWaiter waiter = new EventWaiter();
-        SettingsManager settings = new SettingsManager();
-        Bot bot = new Bot(waiter, config, settings);
+        Database database;
+        try
+        {
+            database = new Database(OtherUtil.getPath(config.getDatabasePath()));
+        }
+        catch(Exception e)
+        {
+            prompt.alert(Prompt.Level.ERROR, "JMusicBot", "Could not open the database " + config.getDatabasePath() + ": " + e.getMessage());
+            return;
+        }
+        SettingsManager settings = new SettingsManager(database);
+        Bot bot = new Bot(waiter, config, settings, database);
+        SlashHandler slash = new SlashHandler(bot);
         CommandClient client = createCommandClient(config, settings, bot);
         
         
@@ -116,15 +140,21 @@ public class JMusicBot
         // attempt to log in and start
         try
         {
-            JDA jda = JDABuilder.create(config.getToken(), Arrays.asList(INTENTS))
+            List<GatewayIntent> intents = new ArrayList<>(Arrays.asList(INTENTS));
+            if(config.useMessageContent())
+                intents.add(GatewayIntent.MESSAGE_CONTENT);
+            JDA jda = JDABuilder.create(config.getToken(), intents)
                     .enableCache(CacheFlag.MEMBER_OVERRIDES, CacheFlag.VOICE_STATE)
-                    .disableCache(CacheFlag.ACTIVITY, CacheFlag.CLIENT_STATUS, CacheFlag.EMOTE, CacheFlag.ONLINE_STATUS)
+                    .disableCache(CacheFlag.ACTIVITY, CacheFlag.CLIENT_STATUS, CacheFlag.EMOJI, CacheFlag.ONLINE_STATUS,
+                            CacheFlag.STICKER, CacheFlag.SOUNDBOARD_SOUNDS, CacheFlag.SCHEDULED_EVENTS)
                     .setActivity(config.isGameNone() ? null : Activity.playing("loading..."))
                     .setStatus(config.getStatus()==OnlineStatus.INVISIBLE || config.getStatus()==OnlineStatus.OFFLINE 
                             ? OnlineStatus.INVISIBLE : OnlineStatus.DO_NOT_DISTURB)
-                    .addEventListeners(client, waiter, new Listener(bot))
+                    .setAudioModuleConfig(createAudioConfig())
+                    .addEventListeners(client, waiter, new Listener(bot, slash), slash, new ButtonHandler(bot))
                     .setBulkDeleteSplittingEnabled(true)
                     .build();
+            jda.setRequiredScopes("applications.commands"); // so the invite link also grants slash commands
             bot.setJDA(jda);
 
             // check if something about the current startup is not supported
@@ -147,7 +177,7 @@ public class JMusicBot
                         + "on https://discord.com/developers/applications/" + jda.getSelfUser().getId() + "/bot");
             }
         }
-        catch (LoginException ex)
+        catch (InvalidTokenException ex)
         {
             prompt.alert(Prompt.Level.ERROR, "JMusicBot", ex + "\nPlease make sure you are "
                     + "editing the correct config.txt file, and that you have used the "
@@ -168,6 +198,28 @@ public class JMusicBot
         }
     }
     
+    /**
+     * Discord requires DAVE (end-to-end encrypted voice) on all non-Stage voice channels; clients without it are
+     * rejected with close code 4017. JDA only ships a pass-through, so the jdave implementation must be installed.
+     */
+    private static AudioModuleConfig createAudioConfig()
+    {
+        AudioModuleConfig audio = new AudioModuleConfig();
+        try
+        {
+            audio = audio.withDaveSessionFactory(new JDaveSessionFactory());
+            HealthServer.daveAvailable = true;
+            LOG.info("DAVE (Discord end-to-end encrypted voice) support loaded");
+        }
+        catch(Throwable t)
+        {
+            HealthServer.daveAvailable = false;
+            LOG.error("DAVE support could NOT be loaded ({}). Voice connections will be rejected by Discord. "
+                    + "Requirements: Java 25+ on linux-x86-64, linux-aarch64, windows-x86-64 or macOS.", t.toString());
+        }
+        return audio;
+    }
+
     private static CommandClient createCommandClient(BotConfig config, SettingsManager settings, Bot bot)
     {
         // instantiate about command

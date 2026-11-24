@@ -17,86 +17,83 @@ package com.jagrosh.jmusicbot.audio;
 
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.entities.Pair;
-import com.jagrosh.jmusicbot.settings.Settings;
+import com.jagrosh.jmusicbot.ui.Embeds;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Message;
-import net.dv8tion.jda.api.entities.TextChannel;
-import net.dv8tion.jda.api.exceptions.PermissionException;
-import net.dv8tion.jda.api.exceptions.RateLimitedException;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.utils.messages.MessageEditData;
 
 /**
+ * Keeps "now playing" panels posted by commands up to date, and mirrors the current song into the bot's status.
  *
  * @author John Grosh (john.a.grosh@gmail.com)
  */
 public class NowplayingHandler
 {
     private final Bot bot;
-    private final HashMap<Long,Pair<Long,Long>> lastNP; // guild -> channel,message
-    
+    private final Map<Long, Pair<Long, Long>> lastNP = new ConcurrentHashMap<>(); // guild -> channel,message
+
     public NowplayingHandler(Bot bot)
     {
         this.bot = bot;
-        this.lastNP = new HashMap<>();
     }
-    
+
     public void init()
     {
+        // The panel shows a progress bar, so refresh it. (With npimages the artwork would reload on every edit.)
         if(!bot.getConfig().useNPImages())
-            bot.getThreadpool().scheduleWithFixedDelay(() -> updateAll(), 0, 5, TimeUnit.SECONDS);
+            bot.getThreadpool().scheduleWithFixedDelay(this::updateAll, 0, 5, TimeUnit.SECONDS);
     }
-    
+
     public void setLastNPMessage(Message m)
     {
-        lastNP.put(m.getGuild().getIdLong(), new Pair<>(m.getTextChannel().getIdLong(), m.getIdLong()));
+        lastNP.put(m.getGuild().getIdLong(), new Pair<>(m.getChannelIdLong(), m.getIdLong()));
     }
-    
+
     public void clearLastNPMessage(Guild guild)
     {
         lastNP.remove(guild.getIdLong());
     }
-    
+
     private void updateAll()
     {
-        Set<Long> toRemove = new HashSet<>();
-        for(long guildId: lastNP.keySet())
+        if(bot.getJDA() == null)
+            return;
+        for(Map.Entry<Long, Pair<Long, Long>> entry : lastNP.entrySet())
         {
-            Guild guild = bot.getJDA().getGuildById(guildId);
-            if(guild==null)
+            long guildId = entry.getKey();
+            try
             {
-                toRemove.add(guildId);
-                continue;
+                Guild guild = bot.getJDA().getGuildById(guildId);
+                if(guild == null)
+                {
+                    lastNP.remove(guildId);
+                    continue;
+                }
+                Pair<Long, Long> pair = entry.getValue();
+                TextChannel tc = guild.getTextChannelById(pair.getKey());
+                if(tc == null)
+                {
+                    lastNP.remove(guildId);
+                    continue;
+                }
+                AudioHandler handler = (AudioHandler) guild.getAudioManager().getSendingHandler();
+                boolean playing = handler != null && handler.getPlayer().getPlayingTrack() != null;
+                tc.editMessageById(pair.getValue(), MessageEditData.fromCreateData(Embeds.nowPlaying(bot, guild)))
+                        .queue(m -> {}, t -> lastNP.remove(guildId));
+                if(!playing)
+                    lastNP.remove(guildId);
             }
-            Pair<Long,Long> pair = lastNP.get(guildId);
-            TextChannel tc = guild.getTextChannelById(pair.getKey());
-            if(tc==null)
+            catch(Exception e)
             {
-                toRemove.add(guildId);
-                continue;
-            }
-            AudioHandler handler = (AudioHandler)guild.getAudioManager().getSendingHandler();
-            Message msg = handler.getNowPlaying(bot.getJDA());
-            if(msg==null)
-            {
-                msg = handler.getNoMusicPlaying(bot.getJDA());
-                toRemove.add(guildId);
-            }
-            try 
-            {
-                tc.editMessageById(pair.getValue(), msg).queue(m->{}, t -> lastNP.remove(guildId));
-            } 
-            catch(Exception e) 
-            {
-                toRemove.add(guildId);
+                lastNP.remove(guildId);
             }
         }
-        toRemove.forEach(id -> lastNP.remove(id));
     }
 
     // "event"-based methods
@@ -105,13 +102,13 @@ public class NowplayingHandler
         // update bot status if applicable
         if(bot.getConfig().getSongInStatus())
         {
-            if(track!=null && bot.getJDA().getGuilds().stream().filter(g -> g.getSelfMember().getVoiceState().inVoiceChannel()).count()<=1)
+            if(track!=null && bot.getJDA().getGuilds().stream().filter(g -> g.getSelfMember().getVoiceState().inAudioChannel()).count()<=1)
                 bot.getJDA().getPresence().setActivity(Activity.listening(track.getInfo().title));
             else
                 bot.resetGame();
         }
     }
-    
+
     public void onMessageDelete(Guild guild, long messageId)
     {
         Pair<Long,Long> pair = lastNP.get(guild.getIdLong());

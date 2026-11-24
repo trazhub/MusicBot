@@ -1,0 +1,15 @@
+JMusicBot (modernized fork)
+Copyright 2016-2024 John Grosh <john.a.grosh@gmail.com> and the original JMusicBot contributors
+Copyright 2026 JMusicBot fork contributors
+
+This product is a fork of jagrosh/MusicBot (https://github.com/jagrosh/MusicBot), licensed under the
+Apache License, Version 2.0. The full license text is in the LICENSE file. Files that were part of the
+original project keep their original copyright headers; files added or substantially rewritten in this fork
+carry the "JMusicBot contributors" header.
+
+Significant changes from the original: migration to JDA 6 and the DAVE voice protocol, JDA-Chewtils in place of
+jda-utilities, SQLite persistence, slash commands and button panels, Spotify metadata and radio resolution,
+SSRF protection, rate limiting, and container/CI tooling. See PROJECT_STATUS.md.
+
+This product depends on, among others: JDA, jdave, JDA-Chewtils, Lavaplayer, youtube-source, sqlite-jdbc, Logback,
+jsoup and Typesafe Config. See each project for its own license terms.
