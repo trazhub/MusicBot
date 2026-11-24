@@ -63,8 +63,9 @@ public class AloneInVoiceHandler
                 continue;
             }
 
-            ((AudioHandler) guild.getAudioManager().getSendingHandler()).stopAndClear();
-            guild.getAudioManager().closeAudioConnection();
+            AudioHandler handler = (AudioHandler) guild.getAudioManager().getSendingHandler();
+            handler.stopAndClear();
+            handler.disconnect();
 
             toRemove.add(entrySet.getKey());
         }

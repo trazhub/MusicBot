@@ -20,12 +20,14 @@ import java.util.concurrent.TimeUnit;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.User;
-import net.dv8tion.jda.api.entities.VoiceChannel;
-import net.dv8tion.jda.api.events.ReadyEvent;
-import net.dv8tion.jda.api.events.ShutdownEvent;
+import net.dv8tion.jda.api.entities.channel.concrete.VoiceChannel;
+import net.dv8tion.jda.api.events.session.ReadyEvent;
+import net.dv8tion.jda.api.events.session.ShutdownEvent;
 import net.dv8tion.jda.api.events.guild.GuildJoinEvent;
 import net.dv8tion.jda.api.events.guild.voice.GuildVoiceUpdateEvent;
-import net.dv8tion.jda.api.events.message.guild.GuildMessageDeleteEvent;
+import net.dv8tion.jda.api.events.message.MessageDeleteEvent;
+import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
+import com.jagrosh.jmusicbot.ui.SlashHandler;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -38,10 +40,12 @@ import org.slf4j.LoggerFactory;
 public class Listener extends ListenerAdapter
 {
     private final Bot bot;
-    
-    public Listener(Bot bot)
+    private final SlashHandler slash;
+
+    public Listener(Bot bot, SlashHandler slash)
     {
         this.bot = bot;
+        this.slash = slash;
     }
     
     @Override
@@ -54,10 +58,14 @@ public class Listener extends ListenerAdapter
             log.warn(event.getJDA().getInviteUrl(JMusicBot.RECOMMENDED_PERMS));
         }
         credit(event.getJDA());
+        bot.onReady(slash);
         event.getJDA().getGuilds().forEach((guild) -> 
         {
             try
             {
+                // legacy behaviour: auto-play the default playlist in the configured voice channel
+                if(guild.getAudioManager().isConnected() || bot.getSettingsManager().getSettings(guild).isStay247())
+                    return;
                 String defpl = bot.getSettingsManager().getSettings(guild).getDefaultPlaylist();
                 VoiceChannel vc = bot.getSettingsManager().getSettings(guild).getVoiceChannel(guild);
                 if(defpl!=null && vc!=null && bot.getPlayerManager().setUpHandler(guild).playFromDefault())
@@ -88,15 +96,25 @@ public class Listener extends ListenerAdapter
     }
     
     @Override
-    public void onGuildMessageDelete(GuildMessageDeleteEvent event) 
+    public void onMessageDelete(MessageDeleteEvent event) 
     {
+        if(!event.isFromGuild())
+            return;
         bot.getNowplayingHandler().onMessageDelete(event.getGuild(), event.getMessageIdLong());
+        bot.getRequestChannels().onMessageDelete(event);
     }
 
     @Override
     public void onGuildVoiceUpdate(@NotNull GuildVoiceUpdateEvent event)
     {
         bot.getAloneInVoiceHandler().onVoiceUpdate(event);
+        bot.getWatchdog().onVoiceUpdate(event);
+    }
+
+    @Override
+    public void onMessageReceived(MessageReceivedEvent event)
+    {
+        bot.getRequestChannels().onMessage(event);
     }
 
     @Override

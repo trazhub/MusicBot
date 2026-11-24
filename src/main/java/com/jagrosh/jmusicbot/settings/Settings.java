@@ -1,5 +1,5 @@
 /*
- * Copyright 2016 John Grosh <john.a.grosh@gmail.com>.
+ * Copyright 2018 John Grosh <john.a.grosh@gmail.com>.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,16 +20,18 @@ import java.util.Collection;
 import java.util.Collections;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Role;
-import net.dv8tion.jda.api.entities.TextChannel;
-import net.dv8tion.jda.api.entities.VoiceChannel;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.entities.channel.concrete.VoiceChannel;
 
 /**
+ * Per-guild settings. Instances are owned by {@link SettingsManager}, which persists every change to SQLite.
  *
- * @author John Grosh <john.a.grosh@gmail.com>
+ * @author John Grosh (john.a.grosh@gmail.com)
  */
 public class Settings implements GuildSettingsProvider
 {
     private final SettingsManager manager;
+    private final long guildId;
     protected long textId;
     protected long voiceId;
     protected long roleId;
@@ -39,45 +41,26 @@ public class Settings implements GuildSettingsProvider
     private QueueType queueType;
     private String prefix;
     private double skipRatio;
+    private boolean autoplay;
+    private boolean stay247;
+    private long requestChannelId;
+    private long requestMessageId;
 
-    public Settings(SettingsManager manager, String textId, String voiceId, String roleId, int volume, String defaultPlaylist, RepeatMode repeatMode, String prefix, double skipRatio, QueueType queueType)
+    public Settings(SettingsManager manager, long guildId)
     {
         this.manager = manager;
-        try
-        {
-            this.textId = Long.parseLong(textId);
-        }
-        catch(NumberFormatException e)
-        {
-            this.textId = 0;
-        }
-        try
-        {
-            this.voiceId = Long.parseLong(voiceId);
-        }
-        catch(NumberFormatException e)
-        {
-            this.voiceId = 0;
-        }
-        try
-        {
-            this.roleId = Long.parseLong(roleId);
-        }
-        catch(NumberFormatException e)
-        {
-            this.roleId = 0;
-        }
-        this.volume = volume;
-        this.defaultPlaylist = defaultPlaylist;
-        this.repeatMode = repeatMode;
-        this.prefix = prefix;
-        this.skipRatio = skipRatio;
-        this.queueType = queueType;
+        this.guildId = guildId;
+        this.volume = 100;
+        this.repeatMode = RepeatMode.OFF;
+        this.queueType = QueueType.FAIR;
+        this.skipRatio = -1;
     }
-    
-    public Settings(SettingsManager manager, long textId, long voiceId, long roleId, int volume, String defaultPlaylist, RepeatMode repeatMode, String prefix, double skipRatio, QueueType queueType)
+
+    /** Populates every field without triggering a save; used when loading from storage. */
+    void load(long textId, long voiceId, long roleId, int volume, String defaultPlaylist, RepeatMode repeatMode,
+            String prefix, double skipRatio, QueueType queueType, boolean autoplay, boolean stay247,
+            long requestChannelId, long requestMessageId)
     {
-        this.manager = manager;
         this.textId = textId;
         this.voiceId = voiceId;
         this.roleId = roleId;
@@ -87,44 +70,73 @@ public class Settings implements GuildSettingsProvider
         this.prefix = prefix;
         this.skipRatio = skipRatio;
         this.queueType = queueType;
+        this.autoplay = autoplay;
+        this.stay247 = stay247;
+        this.requestChannelId = requestChannelId;
+        this.requestMessageId = requestMessageId;
     }
-    
+
+    private void save()
+    {
+        manager.save(this);
+    }
+
     // Getters
+    public long getGuildId()
+    {
+        return guildId;
+    }
+
     public TextChannel getTextChannel(Guild guild)
     {
         return guild == null ? null : guild.getTextChannelById(textId);
     }
-    
+
     public VoiceChannel getVoiceChannel(Guild guild)
     {
         return guild == null ? null : guild.getVoiceChannelById(voiceId);
     }
-    
+
+    public long getVoiceChannelId()
+    {
+        return voiceId;
+    }
+
     public Role getRole(Guild guild)
     {
         return guild == null ? null : guild.getRoleById(roleId);
     }
-    
+
+    public long getRoleId()
+    {
+        return roleId;
+    }
+
+    public long getTextChannelId()
+    {
+        return textId;
+    }
+
     public int getVolume()
     {
         return volume;
     }
-    
+
     public String getDefaultPlaylist()
     {
         return defaultPlaylist;
     }
-    
+
     public RepeatMode getRepeatMode()
     {
         return repeatMode;
     }
-    
+
     public String getPrefix()
     {
         return prefix;
     }
-    
+
     public double getSkipRatio()
     {
         return skipRatio;
@@ -135,64 +147,103 @@ public class Settings implements GuildSettingsProvider
         return queueType;
     }
 
+    public boolean isAutoplay()
+    {
+        return autoplay;
+    }
+
+    public boolean isStay247()
+    {
+        return stay247;
+    }
+
+    public long getRequestChannelId()
+    {
+        return requestChannelId;
+    }
+
+    public long getRequestMessageId()
+    {
+        return requestMessageId;
+    }
+
     @Override
     public Collection<String> getPrefixes()
     {
         return prefix == null ? Collections.emptySet() : Collections.singleton(prefix);
     }
-    
+
     // Setters
     public void setTextChannel(TextChannel tc)
     {
         this.textId = tc == null ? 0 : tc.getIdLong();
-        this.manager.writeSettings();
+        save();
     }
-    
+
     public void setVoiceChannel(VoiceChannel vc)
     {
         this.voiceId = vc == null ? 0 : vc.getIdLong();
-        this.manager.writeSettings();
+        save();
     }
-    
+
     public void setDJRole(Role role)
     {
         this.roleId = role == null ? 0 : role.getIdLong();
-        this.manager.writeSettings();
+        save();
     }
-    
+
     public void setVolume(int volume)
     {
         this.volume = volume;
-        this.manager.writeSettings();
+        save();
     }
-    
+
     public void setDefaultPlaylist(String defaultPlaylist)
     {
         this.defaultPlaylist = defaultPlaylist;
-        this.manager.writeSettings();
+        save();
     }
-    
+
     public void setRepeatMode(RepeatMode mode)
     {
         this.repeatMode = mode;
-        this.manager.writeSettings();
+        save();
     }
-    
+
     public void setPrefix(String prefix)
     {
         this.prefix = prefix;
-        this.manager.writeSettings();
+        save();
     }
 
     public void setSkipRatio(double skipRatio)
     {
         this.skipRatio = skipRatio;
-        this.manager.writeSettings();
+        save();
     }
 
     public void setQueueType(QueueType queueType)
     {
         this.queueType = queueType;
-        this.manager.writeSettings();
+        save();
+    }
+
+    public void setAutoplay(boolean autoplay)
+    {
+        this.autoplay = autoplay;
+        save();
+    }
+
+    public void setStay247(boolean stay247)
+    {
+        this.stay247 = stay247;
+        save();
+    }
+
+    public void setRequestChannel(long channelId, long messageId)
+    {
+        this.requestChannelId = channelId;
+        this.requestMessageId = messageId;
+        save();
     }
 }

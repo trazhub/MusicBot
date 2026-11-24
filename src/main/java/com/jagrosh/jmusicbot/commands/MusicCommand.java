@@ -21,8 +21,8 @@ import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.settings.Settings;
 import com.jagrosh.jmusicbot.audio.AudioHandler;
 import net.dv8tion.jda.api.entities.GuildVoiceState;
-import net.dv8tion.jda.api.entities.TextChannel;
-import net.dv8tion.jda.api.entities.VoiceChannel;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.entities.channel.concrete.VoiceChannel;
 import net.dv8tion.jda.api.exceptions.PermissionException;
 
 /**
@@ -45,6 +45,12 @@ public abstract class MusicCommand extends Command
     @Override
     protected void execute(CommandEvent event) 
     {
+        long wait = bot.getRateLimiter().tryAcquire(event.getGuild().getId() + ":" + event.getAuthor().getId());
+        if(wait > 0)
+        {
+            event.replyWarning("Slow down! Try again in " + (wait / 1000 + 1) + "s.");
+            return;
+        }
         Settings settings = event.getClient().getSettingsFor(event.getGuild());
         TextChannel tchannel = settings.getTextChannel(event.getGuild());
         if(tchannel!=null && !event.getTextChannel().equals(tchannel))
@@ -56,7 +62,7 @@ public abstract class MusicCommand extends Command
             event.replyInDm(event.getClient().getError()+" You can only use that command in "+tchannel.getAsMention()+"!");
             return;
         }
-        bot.getPlayerManager().setUpHandler(event.getGuild()); // no point constantly checking for this later
+        bot.getPlayerManager().setUpHandler(event.getGuild()).setAnnounceChannel(event.getChannel().getIdLong()); // no point constantly checking for this later
         if(bePlaying && !((AudioHandler)event.getGuild().getAudioManager().getSendingHandler()).isMusicPlaying(event.getJDA()))
         {
             event.reply(event.getClient().getError()+" There must be music playing to use that!");
@@ -64,11 +70,11 @@ public abstract class MusicCommand extends Command
         }
         if(beListening)
         {
-            VoiceChannel current = event.getGuild().getSelfMember().getVoiceState().getChannel();
+            net.dv8tion.jda.api.entities.channel.middleman.AudioChannel current = event.getGuild().getSelfMember().getVoiceState().getChannel();
             if(current==null)
                 current = settings.getVoiceChannel(event.getGuild());
             GuildVoiceState userState = event.getMember().getVoiceState();
-            if(!userState.inVoiceChannel() || userState.isDeafened() || (current!=null && !userState.getChannel().equals(current)))
+            if(!userState.inAudioChannel() || userState.isDeafened() || (current!=null && !userState.getChannel().equals(current)))
             {
                 event.replyError("You must be listening in "+(current==null ? "a voice channel" : current.getAsMention())+" to use that!");
                 return;
@@ -81,11 +87,12 @@ public abstract class MusicCommand extends Command
                 return;
             }
 
-            if(!event.getGuild().getSelfMember().getVoiceState().inVoiceChannel())
+            if(!event.getGuild().getSelfMember().getVoiceState().inAudioChannel())
             {
                 try 
                 {
                     event.getGuild().getAudioManager().openAudioConnection(userState.getChannel());
+                    ((AudioHandler)event.getGuild().getAudioManager().getSendingHandler()).onJoined(userState.getChannel().getIdLong());
                 }
                 catch(PermissionException ex) 
                 {

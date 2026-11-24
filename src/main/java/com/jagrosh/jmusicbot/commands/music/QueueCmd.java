@@ -28,7 +28,7 @@ import com.jagrosh.jmusicbot.settings.RepeatMode;
 import com.jagrosh.jmusicbot.settings.Settings;
 import com.jagrosh.jmusicbot.utils.FormatUtil;
 import com.jagrosh.jmusicbot.utils.TimeUtil;
-import net.dv8tion.jda.api.MessageBuilder;
+import com.jagrosh.jmusicbot.ui.Embeds;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.exceptions.PermissionException;
@@ -39,9 +39,7 @@ import net.dv8tion.jda.api.exceptions.PermissionException;
  */
 public class QueueCmd extends MusicCommand 
 {
-    private final Paginator.Builder builder;
-    
-    public QueueCmd(Bot bot)
+public QueueCmd(Bot bot)
     {
         super(bot);
         this.name = "queue";
@@ -50,17 +48,7 @@ public class QueueCmd extends MusicCommand
         this.aliases = bot.getConfig().getAliases(this.name);
         this.bePlaying = true;
         this.botPermissions = new Permission[]{Permission.MESSAGE_ADD_REACTION,Permission.MESSAGE_EMBED_LINKS};
-        builder = new Paginator.Builder()
-                .setColumns(1)
-                .setFinalAction(m -> {try{m.clearReactions().queue();}catch(PermissionException ignore){}})
-                .setItemsPerPage(10)
-                .waitOnSinglePage(false)
-                .useNumberedItems(true)
-                .showPageNumbers(true)
-                .wrapPageEnds(true)
-                .setEventWaiter(bot.getWaiter())
-                .setTimeout(1, TimeUnit.MINUTES);
-    }
+}
 
     @Override
     public void doCommand(CommandEvent event)
@@ -72,49 +60,16 @@ public class QueueCmd extends MusicCommand
         }
         catch(NumberFormatException ignore){}
         AudioHandler ah = (AudioHandler)event.getGuild().getAudioManager().getSendingHandler();
-        List<QueuedTrack> list = ah.getQueue().getList();
-        if(list.isEmpty())
+        if(ah.getQueue().isEmpty())
         {
-            Message nowp = ah.getNowPlaying(event.getJDA());
-            Message nonowp = ah.getNoMusicPlaying(event.getJDA());
-            Message built = new MessageBuilder()
-                    .setContent(event.getClient().getWarning() + " There is no music in the queue!")
-                    .setEmbeds((nowp==null ? nonowp : nowp).getEmbeds().get(0)).build();
-            event.reply(built, m -> 
+            boolean playing = ah.getPlayer().getPlayingTrack() != null;
+            event.getChannel().sendMessage(Embeds.nowPlaying(bot, event.getGuild())).queue(m ->
             {
-                if(nowp!=null)
+                if(playing)
                     bot.getNowplayingHandler().setLastNPMessage(m);
             });
             return;
         }
-        String[] songs = new String[list.size()];
-        long total = 0;
-        for(int i=0; i<list.size(); i++)
-        {
-            total += list.get(i).getTrack().getDuration();
-            songs[i] = list.get(i).toString();
-        }
-        Settings settings = event.getClient().getSettingsFor(event.getGuild());
-        long fintotal = total;
-        builder.setText((i1,i2) -> getQueueTitle(ah, event.getClient().getSuccess(), songs.length, fintotal, settings.getRepeatMode(), settings.getQueueType()))
-                .setItems(songs)
-                .setUsers(event.getAuthor())
-                .setColor(event.getSelfMember().getColor())
-                ;
-        builder.build().paginate(event.getChannel(), pagenum);
-    }
-    
-    private String getQueueTitle(AudioHandler ah, String success, int songslength, long total, RepeatMode repeatmode, QueueType queueType)
-    {
-        StringBuilder sb = new StringBuilder();
-        if(ah.getPlayer().getPlayingTrack()!=null)
-        {
-            sb.append(ah.getStatusEmoji()).append(" **")
-                    .append(ah.getPlayer().getPlayingTrack().getInfo().title).append("**\n");
-        }
-        return FormatUtil.filter(sb.append(success).append(" Current Queue | ").append(songslength)
-                .append(" entries | `").append(TimeUtil.formatTime(total)).append("` ")
-                .append("| ").append(queueType.getEmoji()).append(" `").append(queueType.getUserFriendlyName()).append('`')
-                .append(repeatmode.getEmoji() != null ? " | "+repeatmode.getEmoji() : "").toString());
+        event.getChannel().sendMessage(Embeds.queue(bot, event.getGuild(), pagenum - 1)).queue();
     }
 }

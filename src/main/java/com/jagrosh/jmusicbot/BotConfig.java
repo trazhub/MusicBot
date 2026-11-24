@@ -16,6 +16,7 @@
 package com.jagrosh.jmusicbot;
 
 import com.jagrosh.jmusicbot.entities.Prompt;
+import com.jagrosh.jmusicbot.security.Secrets;
 import com.jagrosh.jmusicbot.utils.OtherUtil;
 import com.jagrosh.jmusicbot.utils.TimeUtil;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
@@ -51,7 +52,13 @@ public class BotConfig
     private Config aliases, transforms;
 
     private boolean valid = false;
-    
+
+    // modern options (all can be set in config.txt; secrets may also come from the environment)
+    private String databasePath, spotifyClientId, spotifyClientSecret, youtubeRefreshToken, youtubePoToken, youtubeVisitorData;
+    private boolean slashCommands, allowPrivateUrls, allowLocalFiles, messageContent;
+    private long slashGuild;
+    private int healthPort, rateLimitCount, rateLimitSeconds, maxQueueSize, spotifyMaxTracks;
+
     public BotConfig(Prompt prompt)
     {
         this.prompt = prompt;
@@ -99,6 +106,37 @@ public class BotConfig
             transforms = config.getConfig("transforms");
             skipratio = config.getDouble("skipratio");
             dbots = owner == 113156185389092864L;
+
+            // environment (or *_FILE secret) values win over config.txt, so containers need no config file
+            String envToken = Secrets.env("JMUSICBOT_TOKEN");
+            if(envToken == null)
+                envToken = Secrets.env("DISCORD_TOKEN");
+            if(envToken != null)
+                token = envToken;
+            String envOwner = Secrets.env("JMUSICBOT_OWNER");
+            if(envOwner != null)
+                owner = Long.parseLong(envOwner);
+            Secrets.register(token);
+
+            databasePath = config.getString("database");
+            slashCommands = config.getBoolean("slashcommands");
+            messageContent = config.getBoolean("messagecontent");
+            slashGuild = envLong("JMUSICBOT_SLASH_GUILD", config.getLong("slashguild"));
+            healthPort = (int) envLong("JMUSICBOT_HEALTH_PORT", config.getInt("healthport"));
+            rateLimitCount = config.getInt("ratelimit.commands");
+            rateLimitSeconds = config.getInt("ratelimit.seconds");
+            maxQueueSize = config.getInt("maxqueuesize");
+            allowPrivateUrls = config.getBoolean("allowprivateurls");
+            allowLocalFiles = config.getBoolean("allowlocalfiles");
+            spotifyMaxTracks = config.getInt("spotify.maxtracks");
+            spotifyClientId = envOr("SPOTIFY_CLIENT_ID", config.getString("spotify.clientid"));
+            spotifyClientSecret = envOr("SPOTIFY_CLIENT_SECRET", config.getString("spotify.clientsecret"));
+            youtubeRefreshToken = envOr("YOUTUBE_REFRESH_TOKEN", config.getString("youtube.refreshtoken"));
+            youtubePoToken = envOr("YOUTUBE_PO_TOKEN", config.getString("youtube.potoken"));
+            youtubeVisitorData = envOr("YOUTUBE_VISITOR_DATA", config.getString("youtube.visitordata"));
+            Secrets.register(spotifyClientSecret);
+            Secrets.register(youtubeRefreshToken);
+            Secrets.register(youtubePoToken);
             
             // we may need to write a new config file
             boolean write = false;
@@ -364,6 +402,38 @@ public class BotConfig
             return false;
         return Math.round(track.getDuration()/1000.0) > maxSeconds;
     }
+
+    private static String envOr(String name, String fallback)
+    {
+        String v = Secrets.env(name);
+        return v != null ? v : (fallback == null || fallback.isBlank() ? null : fallback);
+    }
+
+    private static long envLong(String name, long fallback)
+    {
+        String v = Secrets.env(name);
+        return v == null ? fallback : Long.parseLong(v);
+    }
+
+    public String getDatabasePath() { return databasePath; }
+    /** True if the privileged Message Content intent is requested (needed for typed requests and custom prefixes). */
+    public boolean useMessageContent() { return messageContent; }
+    public boolean useSlashCommands() { return slashCommands; }
+    /** Guild id to register slash commands in (instant), or 0 for global registration. */
+    public long getSlashGuild() { return slashGuild; }
+    /** Port for the local health endpoint, or 0 if disabled. */
+    public int getHealthPort() { return healthPort; }
+    public int getRateLimitCount() { return rateLimitCount; }
+    public int getRateLimitSeconds() { return rateLimitSeconds; }
+    public int getMaxQueueSize() { return maxQueueSize; }
+    public boolean allowPrivateUrls() { return allowPrivateUrls; }
+    public boolean allowLocalFiles() { return allowLocalFiles; }
+    public int getSpotifyMaxTracks() { return spotifyMaxTracks; }
+    public String getSpotifyClientId() { return spotifyClientId; }
+    public String getSpotifyClientSecret() { return spotifyClientSecret; }
+    public String getYoutubeRefreshToken() { return youtubeRefreshToken; }
+    public String getYoutubePoToken() { return youtubePoToken; }
+    public String getYoutubeVisitorData() { return youtubeVisitorData; }
 
     public String[] getAliases(String command)
     {
