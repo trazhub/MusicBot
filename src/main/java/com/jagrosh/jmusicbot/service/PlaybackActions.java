@@ -313,8 +313,7 @@ public class PlaybackActions
                 return Result.fail("Join a voice channel first so I know where to stay.");
             if(!(vc instanceof net.dv8tion.jda.api.entities.channel.concrete.VoiceChannel v))
                 return Result.fail("24/7 mode works in regular voice channels.");
-            s.setVoiceChannel(v);
-            s.setStay247(true);
+            s.setStay247(true, v.getIdLong());
             handler(g);
             if(!g.getSelfMember().getVoiceState().inAudioChannel())
             {
@@ -323,7 +322,7 @@ public class PlaybackActions
             }
             return Result.ok("24/7 mode is **on**. I'll stay in " + vc.getAsMention() + " and come back after restarts.");
         }
-        s.setStay247(false);
+        s.setStay247(false, 0);
         return Result.ok("24/7 mode is **off**. I'll leave when the queue ends.");
     }
 

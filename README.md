@@ -1,60 +1,42 @@
-<img align="right" src="https://i.imgur.com/zrE80HY.png" height="200" width="200">
+# JMusicBot (modernized fork)
 
-# JMusicBot
+A self-hosted Discord music bot. This is a fork of [jagrosh/MusicBot](https://github.com/jagrosh/MusicBot) (Apache-2.0) that fixes the
+voice failures of the upstream 0.4.x line and adds slash commands, interactive panels, persistence and container tooling.
 
-[![Downloads](https://img.shields.io/github/downloads/jagrosh/MusicBot/total.svg)](https://github.com/jagrosh/MusicBot/releases/latest)
-[![Stars](https://img.shields.io/github/stars/jagrosh/MusicBot.svg)](https://github.com/jagrosh/MusicBot/stargazers)
-[![Release](https://img.shields.io/github/release/jagrosh/MusicBot.svg)](https://github.com/jagrosh/MusicBot/releases/latest)
-[![License](https://img.shields.io/github/license/jagrosh/MusicBot.svg)](https://github.com/jagrosh/MusicBot/blob/master/LICENSE)
-[![Discord](https://discordapp.com/api/guilds/147698382092238848/widget.png)](https://discord.gg/0p9LSGoRLu6Pet0k)<br>
-[![CircleCI](https://dl.circleci.com/status-badge/img/gh/jagrosh/MusicBot/tree/master.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/jagrosh/MusicBot/tree/master)
-[![Build and Test](https://github.com/jagrosh/MusicBot/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/jagrosh/MusicBot/actions/workflows/build-and-test.yml)
-[![CodeFactor](https://www.codefactor.io/repository/github/jagrosh/musicbot/badge)](https://www.codefactor.io/repository/github/jagrosh/musicbot)
+> **Read [PROJECT_STATUS.md](PROJECT_STATUS.md) first.** It lists exactly what was verified and what was not — notably, live Discord voice
+> has not been tested by the author of this change, and YouTube/SoundCloud have known limitations.
 
-A cross-platform Discord music bot with a clean interface, and that is easy to set up and run yourself!
-
-[![Setup](http://i.imgur.com/VvXYp5j.png)](https://jmusicbot.com/setup)
+## Why a fork
+* Voice was broken upstream: JDA 4 cannot negotiate Discord's current voice encryption (reconnect loops, silence) and has no **DAVE**
+  end-to-end-encryption support, which Discord now requires. This fork uses **JDA 6.7.0 + jdave** and therefore needs **Java 25**.
+* Updated Lavaplayer 2.2.7 and youtube-source 1.18.2.
 
 ## Features
-  * Easy to run (just make sure Java is installed, and run!)
-  * Fast loading of songs
-  * No external keys needed (besides a Discord Bot token)
-  * Smooth playback
-  * Server-specific setup for the "DJ" role that can moderate the music
-  * Clean and beautiful menus
-  * Supports many sites, including Youtube, Soundcloud, and more
-  * Supports many online radio/streams
-  * Supports local files
-  * Playlist support (both web/youtube, and local)
+* **Slash commands** for everything (`/play /search /radio /playlist /queue /nowplaying /skip /previous /loop /seek /volume /shuffle /autoplay /247 /history /lyrics /settings /config /help …`) — the original `!`/mention commands still work.
+* **Player panel** with artwork, progress bar and buttons (pause, skip, previous, stop, loop, shuffle, volume, queue, autoplay); paginated queue and history.
+* **Request channel**: a persistent panel channel where typing a song name queues it (`/config requestchannel`).
+* Queue (fair or linear), repeat, shuffle, seek, **autoplay**, history, **24/7 mode**, automatic voice reconnection, queue restored after restarts.
+* Sources: YouTube, Bandcamp, Vimeo, Twitch, direct audio URLs, internet **radio** (by name), **Spotify links** (song info only — audio is matched on YouTube; Spotify is never streamed). SoundCloud is currently broken inside Lavaplayer ([#204](https://github.com/lavalink-devs/lavaplayer/issues/204)).
+* SQLite persistence, per-server settings, DJ role / Manage Server permissions, rate limiting, SSRF protection, secrets via environment.
+* Docker image (non-root, health check), docker-compose, GitHub Actions CI, CodeQL/Trivy scanning, releases.
 
-## Supported sources and formats
-JMusicBot supports all sources and formats supported by [lavaplayer](https://github.com/sedmelluq/lavaplayer#supported-formats):
-### Sources
-  * YouTube
-  * SoundCloud
-  * Bandcamp
-  * Vimeo
-  * Twitch streams
-  * Local files
-  * HTTP URLs
-### Formats
-  * MP3
-  * FLAC
-  * WAV
-  * Matroska/WebM (AAC, Opus or Vorbis codecs)
-  * MP4/M4A (AAC codec)
-  * OGG streams (Opus, Vorbis and FLAC codecs)
-  * AAC streams
-  * Stream playlists (M3U and PLS)
+## Quick start (Docker)
+```bash
+cp .env.example .env      # set JMUSICBOT_TOKEN and JMUSICBOT_OWNER
+docker compose up -d --build
+docker compose logs -f
+```
+Full instructions, systemd alternative, Discord setup and YouTube sign-in workarounds: **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
+Problems: **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)**.
 
-## Example
-![Loading Example...](https://i.imgur.com/kVtTKvS.gif)
+## Build from source
+Requires JDK 25 and Maven 3.9+.
+```bash
+mvn verify                       # compiles, runs the tests, builds target/JMusicBot-<version>-All.jar
+java --enable-native-access=ALL-UNNAMED -jar target/JMusicBot-*-All.jar
+```
+Configuration: environment variables (see `.env.example`) or a `config.txt` (`java -jar … generate-config` writes a documented template).
+Any option can be overridden with `CONFIG_FORCE_<option>`.
 
-## Setup
-Please see the [Setup Page](https://jmusicbot.com/setup) to run this bot yourself!
-
-## Questions/Suggestions/Bug Reports
-**Please read the [Issues List](https://github.com/jagrosh/MusicBot/issues) before suggesting a feature**. If you have a question, need troubleshooting help, or want to brainstorm a new feature, please start a [Discussion](https://github.com/jagrosh/MusicBot/discussions). If you'd like to suggest a feature or report a reproducible bug, please open an [Issue](https://github.com/jagrosh/MusicBot/issues) on this repository. If you like this bot, be sure to add a star to the libraries that make this possible: [**JDA**](https://github.com/DV8FromTheWorld/JDA) and [**lavaplayer**](https://github.com/sedmelluq/lavaplayer)!
-
-## Editing
-This bot (and the source code here) might not be easy to edit for inexperienced programmers. The main purpose of having the source public is to show the capabilities of the libraries, to allow others to understand how the bot works, and to allow those knowledgeable about java, JDA, and Discord bot development to contribute. There are many requirements and dependencies required to edit and compile it, and there will not be support provided for people looking to make changes on their own. Instead, consider making a feature request (see the above section). If you choose to make edits, please do so in accordance with the Apache 2.0 License.
+## License
+Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE). Original work © John Grosh and contributors.

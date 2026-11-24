@@ -74,7 +74,7 @@ public class SettingsManager implements GuildSettingsManager<Settings>
                             parseEnum(RepeatMode.class, rs.getString("repeat_mode"), RepeatMode.OFF),
                             rs.getString("prefix"), rs.getDouble("skip_ratio"),
                             parseEnum(QueueType.class, rs.getString("queue_type"), QueueType.FAIR),
-                            rs.getInt("autoplay") != 0, rs.getInt("stay_247") != 0,
+                            rs.getInt("autoplay") != 0, rs.getInt("stay_247") != 0, rs.getLong("stay_channel_id"),
                             rs.getLong("request_channel_id"), rs.getLong("request_message_id"));
                     settings.put(id, s);
                 }
@@ -120,7 +120,7 @@ public class SettingsManager implements GuildSettingsManager<Settings>
                         o.has("repeat_mode") ? o.getEnum(RepeatMode.class, "repeat_mode") : RepeatMode.OFF,
                         o.optString("prefix", null), o.optDouble("skip_ratio", -1),
                         o.has("queue_type") ? o.getEnum(QueueType.class, "queue_type") : QueueType.FAIR,
-                        false, false, 0, 0);
+                        false, false, 0, 0, 0);
                 settings.put(gid, s);
                 save(s);
             }
@@ -176,13 +176,13 @@ public class SettingsManager implements GuildSettingsManager<Settings>
             {
                 try(PreparedStatement ps = c.prepareStatement(
                         "INSERT INTO guild_settings(guild_id,text_channel_id,voice_channel_id,dj_role_id,volume,default_playlist,"
-                        + "repeat_mode,prefix,skip_ratio,queue_type,autoplay,stay_247,request_channel_id,request_message_id) "
-                        + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+                        + "repeat_mode,prefix,skip_ratio,queue_type,autoplay,stay_247,stay_channel_id,request_channel_id,request_message_id) "
+                        + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
                         + "ON CONFLICT(guild_id) DO UPDATE SET text_channel_id=excluded.text_channel_id,"
                         + "voice_channel_id=excluded.voice_channel_id,dj_role_id=excluded.dj_role_id,volume=excluded.volume,"
                         + "default_playlist=excluded.default_playlist,repeat_mode=excluded.repeat_mode,prefix=excluded.prefix,"
                         + "skip_ratio=excluded.skip_ratio,queue_type=excluded.queue_type,autoplay=excluded.autoplay,"
-                        + "stay_247=excluded.stay_247,request_channel_id=excluded.request_channel_id,"
+                        + "stay_247=excluded.stay_247,stay_channel_id=excluded.stay_channel_id,request_channel_id=excluded.request_channel_id,"
                         + "request_message_id=excluded.request_message_id"))
                 {
                     int i = 1;
@@ -198,6 +198,7 @@ public class SettingsManager implements GuildSettingsManager<Settings>
                     ps.setString(i++, s.getQueueType().name());
                     ps.setInt(i++, s.isAutoplay() ? 1 : 0);
                     ps.setInt(i++, s.isStay247() ? 1 : 0);
+                    ps.setLong(i++, s.getStayChannelId());
                     ps.setLong(i++, s.getRequestChannelId());
                     ps.setLong(i, s.getRequestMessageId());
                     ps.executeUpdate();

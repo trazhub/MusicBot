@@ -160,7 +160,7 @@ public class VoiceWatchdog
             for(long guildId : bot.getSettingsManager().knownGuilds())
             {
                 Settings s = bot.getSettingsManager().getSettings(guildId);
-                if(!s.isStay247() || s.getVoiceChannelId() == 0)
+                if(!s.isStay247() || s.getStayChannelId() == 0)
                     continue;
                 Guild guild = bot.getJDA().getGuildById(guildId);
                 if(guild == null || guild.getSelfMember().getVoiceState().inAudioChannel())
@@ -170,7 +170,7 @@ public class VoiceWatchdog
                     continue;
                 if(attempts.getOrDefault(guildId, 0) > 0)
                     continue; // a backoff retry is already in flight
-                AudioChannel ch = s.getVoiceChannel(guild);
+                AudioChannel ch = guild.getChannelById(AudioChannel.class, s.getStayChannelId());
                 if(ch != null)
                 {
                     LOG.info("[{}] 24/7 sweep rejoining {}", guildId, ch.getName());

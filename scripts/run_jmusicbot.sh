@@ -1,35 +1,20 @@
 #!/bin/sh
+# Runs a locally built JMusicBot jar and restarts it if it exits (e.g. after the owner's shutdown command).
+# Requires Java 25+. Unlike earlier versions of this script it does NOT download anything: build the jar
+# (mvn package) or take one from this project's releases, and point JAR at it.
+#
+#   JAR=JMusicBot.jar ./run_jmusicbot.sh
+JAR="${JAR:-JMusicBot.jar}"
+LOOP="${LOOP:-true}"
 
-# This will have this script check for a new version of JMusicBot every
-# startup (and download it if the latest version isn't currently downloaded)
-DOWNLOAD=true
+if [ ! -f "$JAR" ]; then
+    echo "Jar not found: $JAR (set JAR=/path/to/JMusicBot-x.y.z.jar)" >&2
+    exit 1
+fi
 
-# This will cause the script to run in a loop so that the bot auto-restarts
-# when you use the shutdown command
-LOOP=true
-
-download() {
-    if [ $DOWNLOAD = true ]; then
-        URL=$(curl -s https://api.github.com/repos/jagrosh/MusicBot/releases/latest \
-           | grep -i "browser_download_url.*\.jar" \
-           | sed 's/.*\(http.*\)"/\1/')
-        FILENAME=$(echo $URL | sed 's/.*\/\([^\/]*\)/\1/')
-        if [ -f $FILENAME ]; then
-            echo "Latest version already downloaded (${FILENAME})"
-        else
-            curl -L $URL -o $FILENAME
-        fi
-    fi
-}
-
-run() {
-    java -Dnogui=true -jar $(ls -t JMusicBot* | head -1)
-}
-
-while
-    download
-    run
-    $LOOP
-do
-    continue
-done 
+while true; do
+    java -Dnogui=true --enable-native-access=ALL-UNNAMED -jar "$JAR"
+    [ "$LOOP" = "true" ] || break
+    echo "JMusicBot exited, restarting in 5 seconds (Ctrl+C to stop)"
+    sleep 5
+done

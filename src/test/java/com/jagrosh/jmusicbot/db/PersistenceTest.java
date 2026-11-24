@@ -52,7 +52,7 @@ class PersistenceTest
         Settings b = m.getSettings(222L);
         a.setVolume(42);
         a.setAutoplay(true);
-        a.setStay247(true);
+        a.setStay247(true, 777L);
         a.setSkipRatio(0.8);
         a.setRepeatMode(RepeatMode.ALL);
         a.setQueueType(QueueType.LINEAR);
@@ -65,6 +65,7 @@ class PersistenceTest
         assertEquals(42, ra.getVolume());
         assertTrue(ra.isAutoplay());
         assertTrue(ra.isStay247());
+        assertEquals(777L, ra.getStayChannelId());
         assertEquals(0.8, ra.getSkipRatio(), 1e-9);
         assertEquals(RepeatMode.ALL, ra.getRepeatMode());
         assertEquals(QueueType.LINEAR, ra.getQueueType());

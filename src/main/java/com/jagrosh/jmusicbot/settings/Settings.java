@@ -43,6 +43,7 @@ public class Settings implements GuildSettingsProvider
     private double skipRatio;
     private boolean autoplay;
     private boolean stay247;
+    private long stayChannelId;
     private long requestChannelId;
     private long requestMessageId;
 
@@ -58,7 +59,7 @@ public class Settings implements GuildSettingsProvider
 
     /** Populates every field without triggering a save; used when loading from storage. */
     void load(long textId, long voiceId, long roleId, int volume, String defaultPlaylist, RepeatMode repeatMode,
-            String prefix, double skipRatio, QueueType queueType, boolean autoplay, boolean stay247,
+            String prefix, double skipRatio, QueueType queueType, boolean autoplay, boolean stay247, long stayChannelId,
             long requestChannelId, long requestMessageId)
     {
         this.textId = textId;
@@ -72,6 +73,7 @@ public class Settings implements GuildSettingsProvider
         this.queueType = queueType;
         this.autoplay = autoplay;
         this.stay247 = stay247;
+        this.stayChannelId = stayChannelId;
         this.requestChannelId = requestChannelId;
         this.requestMessageId = requestMessageId;
     }
@@ -157,6 +159,12 @@ public class Settings implements GuildSettingsProvider
         return stay247;
     }
 
+    /** Voice channel the bot stays in while 24/7 mode is on (independent of the "music only in channel X" restriction). */
+    public long getStayChannelId()
+    {
+        return stayChannelId;
+    }
+
     public long getRequestChannelId()
     {
         return requestChannelId;
@@ -234,9 +242,10 @@ public class Settings implements GuildSettingsProvider
         save();
     }
 
-    public void setStay247(boolean stay247)
+    public void setStay247(boolean stay247, long channelId)
     {
         this.stay247 = stay247;
+        this.stayChannelId = stay247 ? channelId : 0;
         save();
     }
 

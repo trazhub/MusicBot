@@ -65,6 +65,8 @@ public class JMusicBot
      */
     public static void main(String[] args)
     {
+        // lets every config option be set with CONFIG_FORCE_<name> environment variables (dots become underscores)
+        System.setProperty("config.override_with_env_vars", System.getProperty("config.override_with_env_vars", "true"));
         if(args.length > 0)
             switch(args[0].toLowerCase())
             {
@@ -152,6 +154,7 @@ public class JMusicBot
                     .addEventListeners(client, waiter, new Listener(bot, slash), slash, new ButtonHandler(bot))
                     .setBulkDeleteSplittingEnabled(true)
                     .build();
+            jda.setRequiredScopes("applications.commands"); // so the invite link also grants slash commands
             bot.setJDA(jda);
 
             // check if something about the current startup is not supported

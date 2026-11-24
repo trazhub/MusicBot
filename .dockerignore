@@ -1,0 +1,16 @@
+.git
+.github
+.circleci
+.vscode
+.idea
+target
+data
+*.db
+*.db-shm
+*.db-wal
+.env
+config.txt
+Playlists
+docs
+*.md
+!README.md

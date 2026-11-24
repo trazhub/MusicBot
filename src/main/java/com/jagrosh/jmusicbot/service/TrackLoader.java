@@ -391,7 +391,13 @@ public class TrackLoader
         {
             LOG.info("Load failed for '{}': {}", query, e.getMessage());
             String m = e.getMessage() == null ? "" : e.getMessage();
-            if(m.toLowerCase(Locale.ROOT).contains("sign in") || m.toLowerCase(Locale.ROOT).contains("not a bot"))
+            Throwable root = e;
+            while(root.getCause() != null && root.getCause() != root)
+                root = root.getCause();
+            if(root.getMessage() != null && root.getMessage().contains("Did not detect any supported formats"))
+                done.accept(fail("SoundCloud playback is currently broken in the audio library (SoundCloud changed its stream formats; "
+                        + "see lavalink-devs/lavaplayer#204). YouTube, Bandcamp and direct links still work."));
+            else if(m.toLowerCase(Locale.ROOT).contains("sign in") || m.toLowerCase(Locale.ROOT).contains("not a bot"))
                 done.accept(fail("YouTube is blocking this server (\"sign in to confirm you're not a bot\"). The owner needs to configure YouTube OAuth or a poToken — see docs/DEPLOYMENT.md."));
             else if(e.severity == FriendlyException.Severity.COMMON)
                 done.accept(fail("Error loading: " + FormatUtil.filter(m)));

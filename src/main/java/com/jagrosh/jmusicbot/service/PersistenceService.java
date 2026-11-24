@@ -117,6 +117,8 @@ public class PersistenceService
                 }
                 AudioChannel vc = guild.getChannelById(AudioChannel.class, state.voiceChannelId());
                 if(vc == null)
+                    vc = guild.getChannelById(AudioChannel.class, s.getStayChannelId());
+                if(vc == null)
                     vc = s.getVoiceChannel(guild);
                 if(vc == null)
                     continue;

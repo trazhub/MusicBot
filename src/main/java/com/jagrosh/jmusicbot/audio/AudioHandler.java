@@ -69,6 +69,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler
 
     private AudioFrame lastFrame;
     private AbstractQueue<QueuedTrack> queue;
+    private final Object queueLock = new Object();
     private volatile boolean stopping = false;
     private volatile boolean intentionalLeave = false;
     private volatile boolean autoplaySearching = false;
@@ -90,6 +91,14 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler
 
     public int addTrackToFront(QueuedTrack qtrack)
     {
+        synchronized(queueLock)
+        {
+            return addToFront(qtrack);
+        }
+    }
+
+    private int addToFront(QueuedTrack qtrack)
+    {
         if(audioPlayer.getPlayingTrack()==null)
         {
             audioPlayer.playTrack(qtrack.getTrack());
@@ -103,6 +112,14 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler
     }
 
     public int addTrack(QueuedTrack qtrack)
+    {
+        synchronized(queueLock)
+        {
+            return append(qtrack);
+        }
+    }
+
+    private int append(QueuedTrack qtrack)
     {
         if(audioPlayer.getPlayingTrack()==null)
         {
@@ -301,9 +318,11 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler
                 queue.addAt(0, clone);
         }
 
+        synchronized(queueLock)
+        {
         if(queue.isEmpty())
         {
-            if(!stopping && endReason.mayStartNext && tryAutoplay(track))
+            if(!stopping && endReason != AudioTrackEndReason.REPLACED && endReason != AudioTrackEndReason.CLEANUP && tryAutoplay(track))
                 return; // autoplay continues asynchronously
             if(!playFromDefault())
                 finishIdle(player);
@@ -312,6 +331,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler
         {
             QueuedTrack qt = queue.pull();
             player.playTrack(qt.getTrack());
+        }
         }
     }
 
